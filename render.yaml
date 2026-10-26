@@ -1,19 +1,36 @@
+# ==============================================================================
+# Render Blueprint Specification for Student Record Management System
+# ==============================================================================
+
 services:
-  # Spring Boot Backend Web Service
+  # ----------------------------------------------------------------------------
+  # 1. Spring Boot Backend Web Service (Containerized via Docker)
+  # ----------------------------------------------------------------------------
   - type: web
     name: student-record-backend
-    runtime: java
+    runtime: docker
     rootDir: backend
-    buildCommand: mvn clean package -DskipTests
-    startCommand: java -jar target/student-record-backend-1.0.0.jar
+    dockerfilePath: Dockerfile
     plan: free
+    healthCheckPath: /api/students
     envVars:
       - key: PORT
         value: 8080
+      # CORS restricted to actual deployed frontend origin (no wildcards)
       - key: CORS_ALLOWED_ORIGINS
-        value: "*"
+        fromService:
+          type: web
+          name: student-record-frontend
+          property: host
+      # Persistent PostgreSQL database connection
+      - key: SPRING_DATASOURCE_URL
+        fromDatabase:
+          name: student-records-db
+          property: connectionString
 
-  # React Frontend Static Site
+  # ----------------------------------------------------------------------------
+  # 2. React.js Frontend Dashboard (Render Static Site)
+  # ----------------------------------------------------------------------------
   - type: web
     name: student-record-frontend
     runtime: static
@@ -21,9 +38,23 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     plan: free
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
+      # Connect frontend to backend public HTTPS origin
       - key: VITE_API_BASE_URL
         fromService:
           type: web
           name: student-record-backend
           property: host
+
+databases:
+  # ----------------------------------------------------------------------------
+  # 3. Managed PostgreSQL Database (Ensures records persist across restarts)
+  # ----------------------------------------------------------------------------
+  - name: student-records-db
+    databaseName: studentdb
+    user: student_user
+    plan: free

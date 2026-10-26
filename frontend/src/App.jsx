@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 
 // Spring Boot backend REST endpoint (configurable via Vite environment variable for production)
-const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+let rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+if (rawBaseUrl && !rawBaseUrl.startsWith('http://') && !rawBaseUrl.startsWith('https://')) {
+  rawBaseUrl = `https://${rawBaseUrl}`;
+}
 const cleanBaseUrl = rawBaseUrl.replace(/\/+$/, '');
 const API_BASE_URL = cleanBaseUrl.endsWith('/api/students')
   ? cleanBaseUrl
