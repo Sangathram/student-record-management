@@ -1,16 +1,16 @@
 package com.exam.studentrecord.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * Global CORS configuration supporting both local Vite dev servers
- * and deployed production frontend domains via environment variables.
+ * Robust CORS configuration supporting both local Vite dev servers
+ * and deployed production frontend domains on Render.
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
@@ -18,36 +18,42 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("${cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173}")
     private String allowedOrigins;
 
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        String[] origins = allowedOrigins.split(",");
-        List<String> validOrigins = new ArrayList<>();
+    @Bean
+    public CorsFilter corsFilter() {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        CorsConfiguration config = new CorsConfiguration();
 
-        for (String origin : origins) {
-            String trimmed = origin.trim();
-            if (!trimmed.isEmpty()) {
-                validOrigins.add(trimmed);
-                // If origin is supplied without protocol like "student-record-frontend.onrender.com",
-                // also allow "https://student-record-frontend.onrender.com"
-                if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
-                    validOrigins.add("https://" + trimmed);
-                    validOrigins.add("http://" + trimmed);
+        // Allow credentials
+        config.setAllowCredentials(true);
+
+        // Allow local Vite dev servers
+        config.addAllowedOriginPattern("http://localhost:[*]");
+        config.addAllowedOriginPattern("http://127.0.0.1:[*]");
+
+        // Allow all deployed Render domains (frontend and backend)
+        config.addAllowedOriginPattern("https://*.onrender.com");
+        config.addAllowedOriginPattern("http://*.onrender.com");
+
+        // Parse any explicitly configured origins from environment variables
+        if (allowedOrigins != null) {
+            for (String origin : allowedOrigins.split(",")) {
+                String trimmed = origin.trim();
+                if (!trimmed.isEmpty() && !trimmed.equals("*")) {
+                    config.addAllowedOriginPattern(trimmed);
+                    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+                        config.addAllowedOriginPattern("https://" + trimmed);
+                        config.addAllowedOriginPattern("http://" + trimmed);
+                    }
                 }
             }
         }
 
-        // Always allow local dev servers for easy testing
-        if (!validOrigins.contains("http://localhost:5173")) {
-            validOrigins.add("http://localhost:5173");
-        }
-        if (!validOrigins.contains("http://127.0.0.1:5173")) {
-            validOrigins.add("http://127.0.0.1:5173");
-        }
+        // Allow all standard HTTP headers and methods
+        config.addAllowedHeader("*");
+        config.addAllowedMethod("*");
+        config.setMaxAge(3600L);
 
-        registry.addMapping("/**")
-                .allowedOriginPatterns(validOrigins.toArray(new String[0]))
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*")
-                .allowCredentials(true);
+        source.registerCorsConfiguration("/**", config);
+        return new CorsFilter(source);
     }
 }
